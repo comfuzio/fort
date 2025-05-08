@@ -3,6 +3,8 @@
 
 #include <util/model/tableitemmodel.h>
 
+#include "traflistcolumn.h"
+
 class StatManager;
 
 struct TrafficRow : TableRow
@@ -46,10 +48,6 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
 
 public slots:
-    void clear();
-
-    void resetAppTotals();
-
     void resetTraf();
     void reset();
 
@@ -66,6 +64,12 @@ protected:
 
     static qint32 getTrafCount(TrafType type, qint32 minTrafTime, qint32 maxTrafTime);
     static qint32 getMaxTrafTime(TrafType type);
+
+private:
+    QVariant headerDataDisplay(int section) const;
+    QVariant headerDataDecoration(int section) const;
+
+    QVariant dataDisplay(const QModelIndex &index) const;
 
 private:
     bool m_isEmpty = false;

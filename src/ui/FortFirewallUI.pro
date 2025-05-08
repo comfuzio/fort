@@ -419,12 +419,14 @@ HEADERS += \
     model/applistmodel.h \
     model/applistmodeldata.h \
     model/applistmodelheaderdata.h \
+    model/appstatcolumn.h \
     model/appstatmodel.h \
     model/connlistcolumn.h \
     model/connlistmodel.h \
     model/rulelistmodel.h \
     model/rulesetmodel.h \
     model/servicelistmodel.h \
+    model/traflistcolumn.h \
     model/traflistmodel.h \
     model/zonelistmodel.h \
     model/zonesourcewrapper.h \

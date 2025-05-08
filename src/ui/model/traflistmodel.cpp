@@ -6,6 +6,7 @@
 #include <stat/statsql.h>
 #include <util/dateutil.h>
 #include <util/formatutil.h>
+#include <util/iconcache.h>
 #include <util/ioc/ioccontainer.h>
 
 namespace {
@@ -87,25 +88,25 @@ int TrafListModel::rowCount(const QModelIndex &parent) const
 
 int TrafListModel::columnCount(const QModelIndex & /*parent*/) const
 {
-    return 4;
+    return int(TrafListColumn::Count);
 }
 
 QVariant TrafListModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
-    const bool isDisplayRole = (role == Qt::DisplayRole || role == Qt::ToolTipRole);
+    if (orientation != Qt::Horizontal)
+        return {};
 
-    if (orientation == Qt::Horizontal && isDisplayRole) {
-        switch (section) {
-        case 0:
-            return tr("Date");
-        case 1:
-            return tr("Download");
-        case 2:
-            return tr("Upload");
-        case 3:
-            return tr("Sum");
-        }
+    switch (role) {
+    // Label
+    case Qt::DisplayRole:
+    case Qt::ToolTipRole:
+        return headerDataDisplay(section);
+
+    // Icon
+    case Qt::DecorationRole:
+        return headerDataDecoration(section);
     }
+
     return {};
 }
 
@@ -114,46 +115,74 @@ QVariant TrafListModel::data(const QModelIndex &index, int role) const
     if (!index.isValid())
         return {};
 
-    if (role == Qt::DisplayRole || role == Qt::ToolTipRole) {
-        const int row = index.row();
-        const int column = index.column();
-
-        updateRowCache(row);
-
-        switch (column) {
-        case 0:
-            return formatTrafTime(m_trafRow.trafTime);
-        case 1:
-            return formatTrafUnit(m_trafRow.inBytes);
-        case 2:
-            return formatTrafUnit(m_trafRow.outBytes);
-        case 3:
-            return formatTrafUnit(m_trafRow.inBytes + m_trafRow.outBytes);
-        }
+    switch (role) {
+    // Label
+    case Qt::DisplayRole:
+    case Qt::ToolTipRole:
+        return dataDisplay(index);
     }
 
     return {};
 }
 
-void TrafListModel::clear()
+QVariant TrafListModel::headerDataDisplay(int section) const
 {
-    statManager()->clearTraffic();
+    switch (TrafListColumn(section)) {
+    case TrafListColumn::Date:
+        return tr("Date");
+    case TrafListColumn::Download:
+        return tr("Download");
+    case TrafListColumn::Upload:
+        return tr("Upload");
+    case TrafListColumn::Sum:
+        return tr("Sum");
+    }
+
+    return {};
 }
 
-void TrafListModel::resetAppTotals()
+QVariant TrafListModel::headerDataDecoration(int section) const
 {
-    statManager()->resetAppTrafTotals();
+    switch (TrafListColumn(section)) {
+    case TrafListColumn::Download:
+        return IconCache::icon(":/icons/green_down.png");
+    case TrafListColumn::Upload:
+        return IconCache::icon(":/icons/blue_up.png");
+    }
+
+    return {};
+}
+
+QVariant TrafListModel::dataDisplay(const QModelIndex &index) const
+{
+    const int row = index.row();
+    const int column = index.column();
+
+    updateRowCache(row);
+
+    switch (TrafListColumn(column)) {
+    case TrafListColumn::Date:
+        return formatTrafTime(m_trafRow.trafTime);
+    case TrafListColumn::Download:
+        return formatTrafUnit(m_trafRow.inBytes);
+    case TrafListColumn::Upload:
+        return formatTrafUnit(m_trafRow.outBytes);
+    case TrafListColumn::Sum:
+        return formatTrafUnit(m_trafRow.inBytes + m_trafRow.outBytes);
+    }
+
+    return {};
 }
 
 void TrafListModel::resetTraf()
 {
-    const char *sqlMinTrafTime = getSqlMinTrafTime(m_type, m_appId);
+    const char *sqlMinTrafTime = getSqlMinTrafTime(type(), m_appId);
 
     beginResetModel();
 
     m_minTrafTime = statManager()->getTrafficTime(sqlMinTrafTime, m_appId);
 
-    m_maxTrafTime = getMaxTrafTime(m_type);
+    m_maxTrafTime = getMaxTrafTime(type());
 
     m_isEmpty = (m_minTrafTime == 0);
 
@@ -161,7 +190,7 @@ void TrafListModel::resetTraf()
         m_minTrafTime = m_maxTrafTime;
     }
 
-    m_trafCount = getTrafCount(m_type, m_minTrafTime, m_maxTrafTime);
+    m_trafCount = getTrafCount(type(), m_minTrafTime, m_maxTrafTime);
 
     invalidateRowCache();
 
@@ -181,7 +210,7 @@ bool TrafListModel::updateTableRow(const QVariantHash & /*vars*/, int row) const
 {
     m_trafRow.trafTime = getTrafTime(row);
 
-    const char *sqlSelectTraffic = getSqlSelectTraffic(m_type, m_appId);
+    const char *sqlSelectTraffic = getSqlSelectTraffic(type(), m_appId);
 
     statManager()->getTraffic(
             sqlSelectTraffic, m_trafRow.trafTime, m_trafRow.inBytes, m_trafRow.outBytes, m_appId);
@@ -210,7 +239,7 @@ QString TrafListModel::formatTrafTime(qint32 trafTime) const
 {
     const qint64 unixTime = DateUtil::toUnixTime(trafTime);
 
-    switch (m_type) {
+    switch (type()) {
     case TrafHourly:
         return DateUtil::formatHour(unixTime);
     case TrafDaily:
@@ -225,7 +254,7 @@ QString TrafListModel::formatTrafTime(qint32 trafTime) const
 
 qint32 TrafListModel::getTrafTime(int row) const
 {
-    switch (m_type) {
+    switch (type()) {
     case TrafHourly:
         return m_maxTrafTime - row;
     case TrafDaily:
